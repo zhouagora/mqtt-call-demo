@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A 应用 - 主叫</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/vendor/mqtt.min.js"></script>
+    <script src="/agora/AgoraRTC_N-4.24.3.js"></script>
+    <script type="module" src="/caller.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <div>
+          <h1>A 应用（主叫）</h1>
+          <p class="status-line">主叫通过 MQTT 发布 CALL 指令，订阅被叫状态上报主题。</p>
+        </div>
+        <a class="secondary-button" href="/">返回首页</a>
+      </header>
+
+      <section class="page-grid">
+        <div class="panel">
+          <div class="form-grid">
+            <div class="field">
+              <label for="phoneNumber">被叫手机号码</label>
+              <input id="phoneNumber" value="18516145955" />
+            </div>
+            <div class="field">
+              <label for="deviceId">被叫 Device ID</label>
+              <input id="deviceId" value="acp-sp2617xxxxx1" />
+            </div>
+            <div class="field">
+              <label for="uid">主叫 UID（int）</label>
+              <input id="uid" value="666" inputmode="numeric" />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="connectButton" class="primary">连接 MQTT</button>
+            <button id="disconnectButton" class="secondary" disabled>断开 MQTT</button>
+          </div>
+
+          <div class="button-row">
+            <button id="callButton" class="primary" disabled>呼叫</button>
+            <button id="hangupButton" class="warn" disabled>挂断</button>
+          </div>
+
+          <div class="status-box">
+            <p>MQTT 状态：<span id="mqttState" class="status-badge">空闲</span></p>
+            <p>当前呼叫状态：<span id="callState" class="status-badge">空闲</span></p>
+            <p id="callSummary" class="hint">等待建立 MQTT 连接。</p>
+          </div>
+        </div>
+
+        <div id="rtcPanel" class="panel rtc-panel" hidden>
+          <h2>语音通话</h2>
+          <div class="audio-status">
+            <div class="audio-indicator">
+              <div id="audioIndicator" class="indicator-circle inactive"></div>
+              <p class="indicator-label">通话中</p>
+            </div>
+            <p class="audio-info">本地 UID: <span id="localUid">-</span></p>
+          </div>
+          <p id="rtcStatus" class="hint">RTC 未连接</p>
+        </div>
+
+        <div class="panel log-panel">
+          <h2>运行日志</h2>
+          <pre id="logs" class="log-view"></pre>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
