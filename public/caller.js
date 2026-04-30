@@ -94,12 +94,20 @@ async function connectMqtt() {
   const tokenRequest = createCallerTokenRequest(config.appId, uid, deviceId);
   log("申请 MQTT Token", tokenRequest);
   const token = await requestMqttToken(tokenRequest);
-  const eventTopic = buildTopic(config.appId, rawDeviceId, "evt/call");
-  const callTopic = buildTopic(config.appId, rawDeviceId, "call");
+  
+  // 主叫端需要订阅的主题
+  const callStateTopic = buildTopic(config.appId, rawDeviceId, "evt/call");  // 被叫状态上报
+  const presenceTopic = `d/${config.appId}/evt/presence`;  // 设备在线状态（不含 deviceId）
+  const callTopic = buildTopic(config.appId, rawDeviceId, "call");  // 发布呼叫指令
+  
+  log("MQTT 主题配置", {
+    subscribe: [callStateTopic, presenceTopic],
+    publish: [callTopic],
+  });
 
-  if (!hasAclPermission(token, "subscribe", eventTopic)) {
+  if (!hasAclPermission(token, "subscribe", callStateTopic)) {
     throw new Error(
-      `当前 Token 无权订阅被叫状态主题：${eventTopic}。`,
+      `当前 Token 无权订阅被叫状态主题：${callStateTopic}。`,
     );
   }
   if (!hasAclPermission(token, "publish", callTopic)) {
@@ -135,34 +143,60 @@ async function connectMqtt() {
 
   client.on("message", async (_topic, message) => {
     const payload = safeJsonParse(message);
-    if (!payload || payload.event_type !== "call_state") {
+    if (!payload) {
       return;
     }
-    const summary = `${payload.state}${payload.cause ? ` / ${payload.cause}` : ""}`;
-    setCallState(payload.state, `被叫最新状态：${summary}`);
-    log("收到被叫状态上报", payload);
+    
+    // 处理被叫状态上报
+    if (payload.event_type === "call_state") {
+      const summary = `${payload.state}${payload.cause ? ` / ${payload.cause}` : ""}`;
+      setCallState(payload.state, `被叫最新状态：${summary}`);
+      log("收到被叫状态上报", payload);
 
-    // 当收到 ANSWERED 状态时，加入 RTC 频道
-    if (payload.state === "ANSWERED" && !agoraClient) {
-      await joinRtcChannel(payload);
+      // 当收到 ANSWERED 状态时，加入 RTC 频道
+      if (payload.state === "ANSWERED" && !agoraClient) {
+        await joinRtcChannel(payload);
+      }
+
+      if (payload.state === "HANGUP" || payload.state === "ERROR") {
+        // 离开 RTC 频道
+        await leaveRtcChannel();
+        currentSession = null;
+        syncButtons();
+      }
     }
-
-    if (payload.state === "HANGUP" || payload.state === "ERROR") {
-      // 离开 RTC 频道
-      await leaveRtcChannel();
-      currentSession = null;
-      syncButtons();
+    
+    // 处理设备在线状态
+    if (payload.event_type === "presence") {
+      log("收到设备在线状态", payload);
+      if (payload.state === "device_offline") {
+        log("被叫设备已离线");
+        if (currentSession) {
+          setCallState("ERROR", "被叫设备已离线");
+          await leaveRtcChannel();
+          currentSession = null;
+          syncButtons();
+        }
+      }
     }
   });
 
   await waitForConnect(client);
 
-  await subscribeTopic(client, eventTopic);
+  // 订阅被叫状态上报主题
+  await subscribeTopic(client, callStateTopic);
+  log("已订阅被叫状态主题", { topic: callStateTopic });
+  
+  // 订阅设备在线状态主题
+  await subscribeTopic(client, presenceTopic);
+  log("已订阅设备在线状态主题", { topic: presenceTopic });
+  
   setMqttState("CONNECTED");
-  setCallState(lastRemoteState, `已用被叫 Device ID 身份连接，并订阅：${eventTopic}`);
+  setCallState(lastRemoteState, `已连接，并订阅：${callStateTopic} 和 ${presenceTopic}`);
   log("MQTT 已连接并完成订阅", {
     clientId: tokenRequest.clientId,
-    eventTopic,
+    callStateTopic,
+    presenceTopic,
   });
   syncButtons();
 }
@@ -277,8 +311,8 @@ async function placeCall() {
   syncButtons();
 
   const callTopic = buildTopic(config.appId, rawDeviceId, "call");
+  log("发布 CALL 指令", { topic: callTopic, payload });
   await publishMessage(client, callTopic, payload);
-  log("已发布 CALL 指令", { topic: callTopic, payload });
 }
 
 async function hangupCall() {
@@ -287,8 +321,8 @@ async function hangupCall() {
   }
   const callTopic = buildTopic(config.appId, currentSession.device_id, "call");
   const payload = buildHangupCommandPayload(currentSession, String(validateUid()));
+  log("发布挂断指令", { topic: callTopic, payload });
   await publishMessage(client, callTopic, payload);
-  log("已发布挂断指令", { topic: callTopic, payload });
   setCallState("HANGUP", "已发送挂断指令，等待被叫最终状态");
 }
 

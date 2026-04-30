@@ -91,7 +91,7 @@ npm run dev
 
 1. 访问被叫端页面
 2. 输入 **Device ID**（例如：`acp-sp2617xxxxx1`）
-   - ⚠️ **注意**：Device ID 区分大小写
+   - ⚠️ **注意**：确保 Device ID 在系统中唯一，重复的 Device ID 会导致互相踢下线
 3. 点击 **连接 MQTT**
 4. 等待连接成功
 
@@ -210,12 +210,12 @@ pm2 start server.js --name mqtt-call-demo
 **可能原因**：
 - `.env` 配置不正确
 - 网络无法访问 EMQX Cloud
-- Device ID 大小写错误
+- Device ID 已被其他客户端占用
 
 **解决方案**：
 - 检查 `.env` 文件配置
 - 查看浏览器控制台和运行日志
-- 确认 Device ID 格式正确
+- 确认 Device ID 唯一，没有被其他设备使用
 
 ### 2. 无法获取麦克风权限
 

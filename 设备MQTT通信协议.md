@@ -45,7 +45,7 @@
         "_from_number": "ACP-SP2617XXXXX1",
         "_pipeline_id": "rtm888_1496117",
         "_source": "sip-manager",
-        "_to_number": "17602189587"
+        "_to_number": "1760218**87"
     },
     "peer_uuid": "019da902-f83e-703f-b55b-d6f17704a59a",
     "service": "",

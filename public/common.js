@@ -101,11 +101,12 @@ export function createCallerTokenRequest(appId, uid, deviceId) {
 }
 
 export function createCalleeTokenRequest(appId, deviceId) {
-  const normalizedDeviceId = normalizeDeviceId(deviceId);
+  // Device ID 直接透传，不做大小写转换
+  const rawDeviceId = String(deviceId).trim();
   return {
-    username: normalizedDeviceId,
-    clientId: `${appId}-${normalizedDeviceId}`,
-    deviceId: normalizedDeviceId,
+    username: rawDeviceId,
+    clientId: `${appId}-${rawDeviceId}`,
+    deviceId: rawDeviceId,
   };
 }
 

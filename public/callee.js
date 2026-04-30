@@ -9,7 +9,6 @@ import {
   createMqttClient,
   hasAclPermission,
   loadConfig,
-  normalizeDeviceId,
   publishMessage,
   requestMqttToken,
   safeJsonParse,
@@ -82,20 +81,33 @@ async function publishState(state, extras = {}) {
   activeSession.state = state;
   const payload = buildCallStatePayload(activeSession, nextSeq++, state, extras);
   const topic = buildTopic(config.appId, activeSession.device_id, "evt/call");
+  log(`发布状态 ${state}`, { topic, payload });
   await publishMessage(client, topic, payload);
   setCallState(
     state,
     `${state}${payload.cause ? ` / ${payload.cause}` : ""}${payload.duration_sec ? ` / ${payload.duration_sec}s` : ""}`,
   );
-  log(`已上报状态 ${state}`, payload);
 }
 
 async function publishDeviceEvent() {
-  const deviceId = normalizeDeviceId(elements.deviceId.value);
+  const deviceId = elements.deviceId.value.trim();
   const topic = buildTopic(config.appId, deviceId, "evt/device");
   const payload = buildDeviceEventPayload("");
+  log("发布设备事件", { topic, payload });
   await publishMessage(client, topic, payload);
-  log("已上报设备事件", { topic, payload });
+}
+
+async function publishDevicePresence(state) {
+  const deviceId = elements.deviceId.value.trim();
+  const topic = buildTopic(config.appId, deviceId, "evt/presence");
+  const payload = {
+    event_type: "presence",
+    state,  // "device_online" 或 "device_offline"
+    device_id: deviceId,
+    timestamp: Date.now(),
+  };
+  log(`发布设备${state === "device_online" ? "在线" : "离线"}状态`, { topic, payload });
+  await publishMessage(client, topic, payload);
 }
 
 function resetSession(summary = "等待新的呼叫请求。") {
@@ -174,7 +186,6 @@ async function connectMqtt() {
   if (!deviceId) {
     throw new Error("Device ID 不能为空");
   }
-  const normalizedDeviceId = normalizeDeviceId(deviceId);
 
   if (!config) {
     config = await loadConfig();
@@ -185,19 +196,21 @@ async function connectMqtt() {
   setCallState("IDLE", "正在申请 JWT Token 并连接 MQTT...");
   log("申请 MQTT Token", tokenRequest);
   const token = await requestMqttToken(tokenRequest);
-  const callTopic = buildTopic(config.appId, normalizedDeviceId, "call");
-  const eventTopic = buildTopic(config.appId, normalizedDeviceId, "evt/call");
-  const deviceTopic = buildTopic(config.appId, normalizedDeviceId, "evt/device");
+  
+  // 被叫端需要订阅和发布的主题（Device ID 直接透传）
+  const callTopic = buildTopic(config.appId, deviceId, "call");  // 订阅呼叫指令
+  const callStateTopic = buildTopic(config.appId, deviceId, "evt/call");  // 发布通话状态
+  const presenceTopic = buildTopic(config.appId, deviceId, "evt/presence");  // 发布设备在线状态
+  const deviceTopic = buildTopic(config.appId, deviceId, "evt/device");  // 发布设备事件
+  
+  log("MQTT 主题配置", {
+    subscribe: [callTopic],
+    publish: [callStateTopic, presenceTopic, deviceTopic],
+  });
 
   if (!hasAclPermission(token, "subscribe", callTopic)) {
     throw new Error(
-      `当前 Device ID Token 无权订阅来电主题：${callTopic}。JWT 只允许订阅 ${eventTopic}，不能直接接收 CALL 指令。`,
-    );
-  }
-  if (!hasAclPermission(token, "publish", deviceTopic)) {
-    log(
-      "提示",
-      `当前 Token 未显式声明 ${deviceTopic} 的 publish 权限，后续设备事件上报可能失败。`,
+      `当前 Device ID Token 无权订阅来电主题：${callTopic}。JWT 只允许订阅 ${callStateTopic}，不能直接接收 CALL 指令。`,
     );
   }
 
@@ -251,12 +264,12 @@ async function connectMqtt() {
 
   await subscribeTopic(client, callTopic);
   await publishDeviceEvent();
+  await publishDevicePresence("device_online");  // 上报设备在线
   setMqttState("CONNECTED");
-  setCallState("IDLE", `已按小写设备标识连接，并订阅：${callTopic}`);
+  setCallState("IDLE", `已连接，并订阅：${callTopic}`);
   syncButtons();
   log("MQTT 已连接并完成订阅", {
-    originalDeviceId: deviceId,
-    normalizedDeviceId,
+    deviceId,
     callTopic,
   });
 }
@@ -265,6 +278,10 @@ function disconnectMqtt() {
   if (!client) {
     return;
   }
+  // 先上报设备离线状态
+  publishDevicePresence("device_offline").catch(err => {
+    log("上报设备离线状态失败", err.message);
+  });
   client.end(true);
   client = null;
   resetSession("连接已断开。");
