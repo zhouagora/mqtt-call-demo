@@ -170,6 +170,10 @@ async function onIncomingHangup(payload) {
     return;
   }
   log("收到主叫挂断指令", payload);
+  
+  // 离开 RTC 频道
+  await leaveRtcChannel();
+  
   const durationSec = activeSession.answeredAt
     ? Math.max(0, Math.floor((Date.now() - activeSession.answeredAt) / 1000))
     : 0;
