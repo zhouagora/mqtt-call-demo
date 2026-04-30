@@ -66,7 +66,7 @@ PORT=3000
 | 变量名 | 说明 | 获取方式 |
 |--------|------|----------|
 | `APP_ID` | 声网 Agora App ID | [声网控制台](https://console.agora.io/) |
-| `BASIC_AUTH` | MQTT Token API 的 Basic 认证 | 联系后端管理员获取 |
+| `BASIC_AUTH` | MQTT Token API 的 Basic 认证 | 详见 [QUICK_START.md](./QUICK_START.md#如何获取-basic_auth) |
 | `MQTT_WS_URL` | EMQX WebSocket 连接地址 | EMQX Cloud 控制台 |
 
 ### 4. 启动服务

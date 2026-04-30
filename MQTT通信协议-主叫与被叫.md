@@ -28,7 +28,7 @@
 
 **示例**：
 ```
-Client ID: 2852620ffb034e7ba73a06ce34b78afd-caller-666
+Client ID: {YOUR_APP_ID}-caller-666
 Username: 666
 Password: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -44,7 +44,7 @@ Password: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 **示例**：
 ```
-Client ID: 2852620ffb034e7ba73a06ce34b78afd-acp-sp2617xxxxx1
+Client ID: {YOUR_APP_ID}-acp-sp2617xxxxx1
 Username: acp-sp2617xxxxx1
 Password: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -81,9 +81,9 @@ d/{appid}/{device_id}/{suffix}
 
 **示例**：
 ```
-订阅: d/2852620ffb034e7ba73a06ce34b78afd/acp-sp2617xxxxx1/evt/call
-订阅: d/2852620ffb034e7ba73a06ce34b78afd/evt/presence
-发布: d/2852620ffb034e7ba73a06ce34b78afd/acp-sp2617xxxxx1/call
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/call
+订阅: d/{YOUR_APP_ID}/evt/presence
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/call
 ```
 
 ### 2.3 被叫端主题
@@ -97,10 +97,10 @@ d/{appid}/{device_id}/{suffix}
 
 **示例**：
 ```
-订阅: d/2852620ffb034e7ba73a06ce34b78afd/acp-sp2617xxxxx1/call
-发布: d/2852620ffb034e7ba73a06ce34b78afd/acp-sp2617xxxxx1/evt/call
-发布: d/2852620ffb034e7ba73a06ce34b78afd/acp-sp2617xxxxx1/evt/presence
-发布: d/2852620ffb034e7ba73a06ce34b78afd/acp-sp2617xxxxx1/evt/device
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/call
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/call
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/presence
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/device
 ```
 
 ---
@@ -133,8 +133,8 @@ d/{appid}/{device_id}/{suffix}
 **消息格式**：
 ```json
 {
-  "agent_id": "A42AJ96AR26KC52KH29EP94EC66KT74T",
-  "appid": "2852620ffb034e7ba73a06ce34b78afd",
+  "agent_id": "{YOUR_AGENT_ID}",
+  "appid": "{YOUR_APP_ID}",
   "channel": "acp-sp2617xxxxx1-13800138000",
   "device_id": "acp-sp2617xxxxx1",
   "event_type": "call",
@@ -153,7 +153,7 @@ d/{appid}/{device_id}/{suffix}
   "token": "",
   "uid": "666",
   "uuid": "CALL-xxxxxxxx",
-  "vid": "130451"
+  "vid": "{YOUR_VID}"
 }
 ```
 
@@ -222,7 +222,7 @@ if (payload.event_type === "presence") {
 ```json
 {
   "event_type": "hangup",
-  "appid": "2852620ffb034e7ba73a06ce34b78afd",
+  "appid": "{YOUR_APP_ID}",
   "device_id": "acp-sp2617xxxxx1",
   "uuid": "CALL-xxxxxxxx",
   "peer_uuid": "PEER-xxxxxxxx",
@@ -294,8 +294,8 @@ if (payload.event_type === "call") {
 {
   "event_type": "call_state",
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "appid": "2852620ffb034e7ba73a06ce34b78afd",
-  "vid": 130451,
+  "appid": "{YOUR_APP_ID}",
+  "vid": {YOUR_VID},
   "labels": { ... },
   "channel": "acp-sp2617xxxxx1-13800138000",
   "call_id": "",
@@ -303,7 +303,7 @@ if (payload.event_type === "call") {
   "seq": 3,
   "uuid": "CALL-xxxxxxxx",
   "peer_uuid": "PEER-xxxxxxxx",
-  "agent_id": "A42AJ96AR26KC52KH29EP94EC66KT74T",
+  "agent_id": "{YOUR_AGENT_ID}",
   "device_id": "acp-sp2617xxxxx1",
   "service": "",
   "direction": "outbound",
