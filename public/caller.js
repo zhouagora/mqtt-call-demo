@@ -1,14 +1,13 @@
 import {
   STATE_TEXT,
   buildCallPayload,
-  buildHangupCommandPayload,
+  buildStopCommandPayload,
   buildTopic,
   createCallerTokenRequest,
   createLogger,
   createMqttClient,
   hasAclPermission,
   loadConfig,
-  normalizeDeviceId,
   publishMessage,
   requestMqttToken,
   safeJsonParse,
@@ -97,7 +96,7 @@ async function connectMqtt() {
   
   // 主叫端需要订阅的主题
   const callStateTopic = buildTopic(config.appId, rawDeviceId, "evt/call");  // 被叫状态上报
-  const presenceTopic = `d/${config.appId}/evt/presence`;  // 设备在线状态（不含 deviceId）
+  const presenceTopic = buildTopic(config.appId, rawDeviceId, "evt/presence");  // 被叫设备在线状态
   const callTopic = buildTopic(config.appId, rawDeviceId, "call");  // 发布呼叫指令
   
   log("MQTT 主题配置", {
@@ -319,10 +318,11 @@ async function hangupCall() {
   if (!client?.connected || !currentSession) {
     return;
   }
-  const callTopic = buildTopic(config.appId, currentSession.device_id, "call");
-  const payload = buildHangupCommandPayload(currentSession, String(validateUid()));
-  log("发布挂断指令", { topic: callTopic, payload });
-  await publishMessage(client, callTopic, payload);
+  // 使用 stop 主题发送挂断指令
+  const stopTopic = buildTopic(config.appId, currentSession.device_id, "stop");
+  const payload = buildStopCommandPayload(config.appId);
+  log("发布 STOP 挂断指令", { topic: stopTopic, payload });
+  await publishMessage(client, stopTopic, payload);
   setCallState("HANGUP", "已发送挂断指令，等待被叫最终状态");
 }
 

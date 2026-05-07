@@ -76,14 +76,16 @@ d/{appid}/{device_id}/{suffix}
 | 方向 | Topic 模式 | 作用 | QoS |
 |------|------------|------|-----|
 | **SUBSCRIBE** | `d/{appid}/{device_id}/evt/call` | 接收被叫的通话状态上报 | 1 |
-| **SUBSCRIBE** | `d/{appid}/evt/presence` | 接收设备在线/离线状态 | 1 |
+| **SUBSCRIBE** | `d/{appid}/{device_id}/evt/presence` | 接收被叫设备在线/离线状态 | 1 |
 | **PUBLISH** | `d/{appid}/{device_id}/call` | 向被叫发起呼叫请求 | 1 |
+| **PUBLISH** | `d/{appid}/{device_id}/stop` | 向被叫发送挂断指令 | 1 |
 
 **示例**：
 ```
 订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/call
-订阅: d/{YOUR_APP_ID}/evt/presence
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/presence
 发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/call
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/stop
 ```
 
 ### 2.3 被叫端主题
@@ -91,6 +93,7 @@ d/{appid}/{device_id}/{suffix}
 | 方向 | Topic 模式 | 作用 | QoS |
 |------|------------|------|-----|
 | **SUBSCRIBE** | `d/{appid}/{device_id}/call` | 接收主叫的呼叫请求 | 1 |
+| **SUBSCRIBE** | `d/{appid}/{device_id}/stop` | 接收主叫的挂断指令 | 1 |
 | **PUBLISH** | `d/{appid}/{device_id}/evt/call` | 上报通话状态 | 1 |
 | **PUBLISH** | `d/{appid}/{device_id}/evt/presence` | 上报设备在线/离线状态 | 1 |
 | **PUBLISH** | `d/{appid}/{device_id}/evt/device` | 上报设备事件（启动时） | 1 |
@@ -98,6 +101,7 @@ d/{appid}/{device_id}/{suffix}
 **示例**：
 ```
 订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/call
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/stop
 发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/call
 发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/presence
 发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/device
@@ -214,25 +218,21 @@ if (payload.event_type === "presence") {
 
 ### 3.5 挂断呼叫
 
-**主题**：`d/{appid}/{device_id}/call`
+**主题**：`d/{appid}/{device_id}/stop`
 
 **操作**：PUBLISH
 
 **消息格式**：
 ```json
 {
-  "event_type": "hangup",
-  "appid": "{YOUR_APP_ID}",
-  "device_id": "acp-sp2617xxxxx1",
-  "uuid": "CALL-xxxxxxxx",
-  "peer_uuid": "PEER-xxxxxxxx",
-  "channel": "acp-sp2617xxxxx1-13800138000",
-  "timestamp": 1776657100,
-  "from": "666",
-  "to": "13800138000",
-  "cause": "NORMAL_CLEARING"
+  "appid": "{YOUR_APP_ID}"
 }
 ```
+
+**说明**：
+- 主叫点击挂断按钮时，向被叫发送 STOP 指令
+- 消息格式简化，只需包含 appid 即可
+- 被叫收到后会离开 RTC 频道并上报 HANGUP 状态
 
 ---
 
@@ -280,6 +280,38 @@ if (payload.event_type === "call") {
   
   // 4. 显示振铃界面
   showRingingPanel(payload);
+}
+```
+
+### 4.2.1 接收挂断指令
+
+**主题**：`d/{appid}/{device_id}/stop`
+
+**操作**：SUBSCRIBE
+
+**消息格式**：
+```json
+{
+  "appid": "{YOUR_APP_ID}"
+}
+```
+
+**处理逻辑**：
+```javascript
+// 收到 STOP 指令后
+if (activeSession) {
+  // 1. 离开 RTC 频道
+  await leaveRtcChannel();
+  
+  // 2. 上报 HANGUP 状态
+  publishState("HANGUP", {
+    cause: activeSession.answeredAt ? "NORMAL_CLEARING" : "USER_BUSY",
+    duration_sec: durationSec,
+    billsec: durationSec
+  });
+  
+  // 3. 清理会话
+  resetSession("主叫已挂断。");
 }
 ```
 

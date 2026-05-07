@@ -166,10 +166,10 @@ async function onIncomingCall(payload) {
 }
 
 async function onIncomingHangup(payload) {
-  if (!activeSession || payload.uuid !== activeSession.uuid) {
+  if (!activeSession) {
     return;
   }
-  log("收到主叫挂断指令", payload);
+  log("收到主叫挂断指令（STOP）", payload);
   
   // 离开 RTC 频道
   await leaveRtcChannel();
@@ -178,7 +178,7 @@ async function onIncomingHangup(payload) {
     ? Math.max(0, Math.floor((Date.now() - activeSession.answeredAt) / 1000))
     : 0;
   await publishState("HANGUP", {
-    cause: payload.cause || (activeSession.answeredAt ? "NORMAL_CLEARING" : "USER_BUSY"),
+    cause: activeSession.answeredAt ? "NORMAL_CLEARING" : "USER_BUSY",
     duration_sec: durationSec,
     billsec: durationSec,
   });
@@ -203,12 +203,13 @@ async function connectMqtt() {
   
   // 被叫端需要订阅和发布的主题（Device ID 直接透传）
   const callTopic = buildTopic(config.appId, deviceId, "call");  // 订阅呼叫指令
+  const stopTopic = buildTopic(config.appId, deviceId, "stop");  // 订阅挂断指令
   const callStateTopic = buildTopic(config.appId, deviceId, "evt/call");  // 发布通话状态
   const presenceTopic = buildTopic(config.appId, deviceId, "evt/presence");  // 发布设备在线状态
   const deviceTopic = buildTopic(config.appId, deviceId, "evt/device");  // 发布设备事件
   
   log("MQTT 主题配置", {
-    subscribe: [callTopic],
+    subscribe: [callTopic, stopTopic],
     publish: [callStateTopic, presenceTopic, deviceTopic],
   });
 
@@ -264,9 +265,32 @@ async function connectMqtt() {
     }
   });
 
+  // 处理 STOP 主题消息（主叫挂断指令）
+  client.on("message", async (topic, message) => {
+    if (topic !== stopTopic) {
+      return;
+    }
+    const payload = safeJsonParse(message);
+    if (!payload) {
+      return;
+    }
+
+    log("收到 STOP 主题消息", { topic, payload });
+
+    try {
+      // 处理主叫挂断指令
+      if (activeSession) {
+        await onIncomingHangup(payload);
+      }
+    } catch (error) {
+      log("处理 STOP 消息失败", error instanceof Error ? error.message : String(error));
+    }
+  });
+
   await waitForConnect(client);
 
   await subscribeTopic(client, callTopic);
+  await subscribeTopic(client, stopTopic);  // 订阅挂断指令
   await publishDeviceEvent();
   await publishDevicePresence("device_online");  // 上报设备在线
   setMqttState("CONNECTED");

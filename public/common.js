@@ -221,6 +221,12 @@ export function buildHangupCommandPayload(session, origin) {
   };
 }
 
+export function buildStopCommandPayload(appId) {
+  return {
+    appid: appId,
+  };
+}
+
 export function buildCallStatePayload(session, seq, state, extras = {}) {
   const base = {
     event_type: "call_state",
