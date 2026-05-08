@@ -3,7 +3,7 @@
 ## 一、请求命令
 
 ```bash
-curl -X POST 'https://api-test.sd-rtn.com/v1/projects/{YOUR_APP_ID}/mqtt/token' \
+curl -X POST 'https://api.sd-rtn.com/v1/projects/{YOUR_APP_ID}/mqtt/token' \
 -H 'Content-Type: application/json' \
 -H 'Authorization: Basic {YOUR_BASIC_AUTH}' \
 -d '{

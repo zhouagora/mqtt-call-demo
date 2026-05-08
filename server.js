@@ -5,7 +5,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const APP_ID = process.env.APP_ID;
-const TOKEN_URL = `https://api-test.sd-rtn.com/v1/projects/${APP_ID}/mqtt/token`;
+const TOKEN_URL = `https://api.sd-rtn.com/v1/projects/${APP_ID}/mqtt/token`;
 const BASIC_AUTH = process.env.BASIC_AUTH;
 const MQTT_WS_URL = process.env.MQTT_WS_URL;
 
