@@ -43,6 +43,8 @@ let config;
 let client;
 let currentSession = null;
 let lastRemoteState = "IDLE";
+let callTimeoutTimer = null;  // 呼叫超时定时器
+const CALL_TIMEOUT = 60000;  // 呼叫超时时间：60秒
 
 // Agora RTC 相关变量
 let agoraClient = null;
@@ -154,14 +156,30 @@ async function connectMqtt() {
 
       // 当收到 ANSWERED 状态时，加入 RTC 频道
       if (payload.state === "ANSWERED" && !agoraClient) {
+        // 清除超时定时器
+        clearCallTimeout();
         await joinRtcChannel(payload);
       }
 
       if (payload.state === "HANGUP" || payload.state === "ERROR") {
-        // 离开 RTC 频道
-        await leaveRtcChannel();
-        currentSession = null;
-        syncButtons();
+        // 清除超时定时器
+        clearCallTimeout();
+        
+        // 只有在会话还在时才清理（避免重复清理）
+        if (currentSession) {
+          // 离开 RTC 频道
+          await leaveRtcChannel();
+          currentSession = null;
+          syncButtons();
+          log("收到被叫挂断状态，已清理本地状态");
+        } else {
+          log("本地状态已清理，忽略被叫挂断状态");
+        }
+      }
+      
+      // 收到任何状态响应时，清除超时定时器
+      if (payload.state === "CALLING" || payload.state === "RINGING") {
+        clearCallTimeout();
       }
     }
     
@@ -204,6 +222,8 @@ function disconnectMqtt() {
   if (!client) {
     return;
   }
+  // 清除超时定时器
+  clearCallTimeout();
   client.end(true);
   client = null;
   currentSession = null;
@@ -312,18 +332,88 @@ async function placeCall() {
   const callTopic = buildTopic(config.appId, rawDeviceId, "call");
   log("发布 CALL 指令", { topic: callTopic, payload });
   await publishMessage(client, callTopic, payload);
+  
+  // 启动呼叫超时定时器
+  startCallTimeout();
 }
 
 async function hangupCall() {
   if (!client?.connected || !currentSession) {
     return;
   }
-  // 使用 stop 主题发送挂断指令
-  const stopTopic = buildTopic(config.appId, currentSession.device_id, "stop");
-  const payload = buildStopCommandPayload(config.appId);
-  log("发布 STOP 挂断指令", { topic: stopTopic, payload });
-  await publishMessage(client, stopTopic, payload);
-  setCallState("HANGUP", "已发送挂断指令，等待被叫最终状态");
+  
+  // 清除超时定时器
+  clearCallTimeout();
+  
+  // 保存会话信息用于发送 STOP 指令
+  const session = currentSession;
+  
+  // 立即清理本地状态（不依赖被叫响应）
+  currentSession = null;
+  
+  // 离开 RTC 频道
+  await leaveRtcChannel();
+  
+  // 发送 STOP 挂断指令（无论被叫是否在线）
+  try {
+    const stopTopic = buildTopic(config.appId, session.device_id, "stop");
+    const payload = buildStopCommandPayload(config.appId);
+    log("发布 STOP 挂断指令", { topic: stopTopic, payload });
+    await publishMessage(client, stopTopic, payload);
+  } catch (error) {
+    log("发送 STOP 指令失败（不影响本地挂断）", error.message);
+  }
+  
+  // 立即更新 UI 状态
+  setCallState("HANGUP", "通话已结束");
+  syncButtons();
+  
+  log("主叫已挂断，本地状态已清理");
+}
+
+/**
+ * 启动呼叫超时定时器
+ * 如果被叫在指定时间内没有响应，自动取消呼叫
+ */
+function startCallTimeout() {
+  // 清除已有的定时器
+  clearCallTimeout();
+  
+  log(`启动呼叫超时定时器，${CALL_TIMEOUT / 1000}秒后自动取消`);
+  
+  callTimeoutTimer = setTimeout(async () => {
+    if (!currentSession) {
+      return;
+    }
+    
+    log("呼叫超时，自动取消呼叫");
+    setCallState("ERROR", "呼叫超时，被叫无响应");
+    
+    // 发送挂断指令
+    try {
+      const stopTopic = buildTopic(config.appId, currentSession.device_id, "stop");
+      const payload = buildStopCommandPayload(config.appId);
+      await publishMessage(client, stopTopic, payload);
+      log("已发送超时取消指令");
+    } catch (error) {
+      log("发送超时取消指令失败", error.message);
+    }
+    
+    // 清理会话状态
+    currentSession = null;
+    syncButtons();
+  }, CALL_TIMEOUT);
+}
+
+/**
+ * 清除呼叫超时定时器
+ */
+function clearCallTimeout() {
+  if (callTimeoutTimer) {
+    clearTimeout(callTimeoutTimer);
+    callTimeoutTimer = null;
+    log("已清除呼叫超时定时器");
+  }
 }
 
 elements.connectButton.addEventListener("click", async () => {
