@@ -257,6 +257,12 @@ async function joinRtcChannel(callStatePayload) {
       onUserUnpublished: (user, mediaType) => {
         log("远端用户取消发布音频流", { uid: user.uid, mediaType });
       },
+      onUserLeft: async (user, reason) => {
+        log("远端用户离开 RTC 频道", { uid: user.uid, reason });
+        
+        // 对方离线，执行兜底处理
+        await handleRemoteUserLeft("被叫已离开语音频道");
+      },
     });
     
     // 加入频道并发布本地音频流
@@ -414,6 +420,34 @@ function clearCallTimeout() {
     callTimeoutTimer = null;
     log("已清除呼叫超时定时器");
   }
+}
+
+/**
+ * 处理远端用户离开 RTC 频道的兜底逻辑
+ * @param {string} reasonText - 离开原因的描述文本
+ */
+async function handleRemoteUserLeft(reasonText) {
+  if (!currentSession) {
+    log("会话已清理，忽略远端用户离开事件");
+    return;
+  }
+  
+  log("执行远端用户离开兜底处理", { reason: reasonText });
+  
+  // 清除超时定时器
+  clearCallTimeout();
+  
+  // 离开 RTC 频道
+  await leaveRtcChannel();
+  
+  // 清理会话状态
+  currentSession = null;
+  
+  // 更新 UI
+  setCallState("ERROR", `${reasonText}，通话已结束`);
+  syncButtons();
+  
+  log("远端用户离开兜底处理完成");
 }
 
 elements.connectButton.addEventListener("click", async () => {

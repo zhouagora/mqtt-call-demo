@@ -334,7 +334,7 @@ export async function leaveAgoraChannel(client, tracks, log) {
 }
 
 export function setupAgoraEventListeners(client, options) {
-  const { onUserPublished, onUserUnpublished, onLocalPlayerReady } = options;
+  const { onUserPublished, onUserUnpublished, onUserLeft, onLocalPlayerReady } = options;
   
   // 当远端用户发布流时
   client.on("user-published", async (user, mediaType) => {
@@ -354,6 +354,13 @@ export function setupAgoraEventListeners(client, options) {
   client.on("user-unpublished", (user, mediaType) => {
     if (onUserUnpublished) {
       onUserUnpublished(user, mediaType);
+    }
+  });
+  
+  // 当远端用户离开时（离线或网络中断）
+  client.on("user-left", (user, reason) => {
+    if (onUserLeft) {
+      onUserLeft(user, reason);
     }
   });
   

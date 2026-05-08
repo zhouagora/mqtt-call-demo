@@ -376,6 +376,12 @@ async function joinRtcChannel() {
       onUserUnpublished: (user, mediaType) => {
         log("远端用户取消发布音频流", { uid: user.uid, mediaType });
       },
+      onUserLeft: async (user, reason) => {
+        log("远端用户离开 RTC 频道", { uid: user.uid, reason });
+        
+        // 对方离线，执行兜底处理
+        await handleRemoteUserLeft("主叫已离开语音频道");
+      },
     });
     
     // 加入频道并发布本地音频流
@@ -420,6 +426,37 @@ async function leaveRtcChannel() {
   }
   
   log("被叫已离开语音频道");
+}
+
+/**
+ * 处理远端用户离开 RTC 频道的兜底逻辑
+ * @param {string} reasonText - 离开原因的描述文本
+ */
+async function handleRemoteUserLeft(reasonText) {
+  if (!activeSession) {
+    log("会话已清理，忽略远端用户离开事件");
+    return;
+  }
+  
+  log("执行远端用户离开兜底处理", { reason: reasonText });
+  
+  // 离开 RTC 频道
+  await leaveRtcChannel();
+  
+  // 上报 HANGUP 状态
+  const durationSec = activeSession.answeredAt
+    ? Math.max(0, Math.floor((Date.now() - activeSession.answeredAt) / 1000))
+    : 0;
+  await publishState("HANGUP", {
+    cause: "REMOTE_USER_LEFT",
+    duration_sec: durationSec,
+    billsec: durationSec,
+  });
+  
+  // 清理会话状态
+  resetSession(`${reasonText}，通话已结束`);
+  
+  log("远端用户离开兜底处理完成");
 }
 
 elements.connectButton.addEventListener("click", async () => {
