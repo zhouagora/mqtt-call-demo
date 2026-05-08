@@ -131,7 +131,7 @@ async function connectMqtt() {
   const onClose = () => {
     setMqttState("IDLE");
     syncButtons();
-    log("MQTT 连接已关闭");
+    log("MQTT 连接已关闭（Token 可能已过期，请手动重连）");
   };
   const onError = (error) => {
     setMqttState("ERROR");
@@ -241,7 +241,7 @@ async function joinRtcChannel(callStatePayload) {
     // 使用呼叫指令中的参数加入 RTC 频道
     const appId = callStatePayload.appid || config.appId;
     const channel = callStatePayload.channel;
-    const uid = 0; // 主叫 UID 固定为 0
+    const uid = 1; // 主叫 UID 固定为 1
     const token = ""; // 默认为空
     
     log("主叫准备加入语音频道", { appId, channel, uid });

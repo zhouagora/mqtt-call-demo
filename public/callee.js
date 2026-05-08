@@ -235,7 +235,7 @@ async function connectMqtt() {
   client.on("close", () => {
     setMqttState("IDLE");
     syncButtons();
-    log("MQTT 连接已关闭");
+    log("MQTT 连接已关闭（Token 可能已过期，请手动重连）");
   });
 
   client.on("error", (error) => {

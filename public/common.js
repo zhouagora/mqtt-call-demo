@@ -116,7 +116,7 @@ export function createMqttClient({ mqttWsUrl, clientId, username, token, log }) 
     username,
     password: token,
     clean: true,
-    reconnectPeriod: 2000,
+    reconnectPeriod: 0,  // 禁用自动重连，Token 过期后需要重新获取
     connectTimeout: 10000,
     protocolVersion: 5,
   });
