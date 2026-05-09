@@ -122,7 +122,7 @@ d/{appid}/{device_id}/{suffix}
 
 3. 订阅主题
    ├── d/{appid}/{device_id}/evt/call    (被叫状态)
-   └── d/{appid}/evt/presence            (设备在线状态)
+   └── d/{appid}/{device_id}/evt/presence (设备在线状态)
 
 4. 等待用户操作
    └── 用户点击"呼叫"按钮
@@ -201,7 +201,7 @@ if (payload.event_type === "call_state") {
 
 ### 3.4 接收设备在线状态
 
-**主题**：`d/{appid}/evt/presence`
+**主题**：`d/{appid}/{device_id}/evt/presence`
 
 **操作**：SUBSCRIBE
 
@@ -210,6 +210,7 @@ if (payload.event_type === "call_state") {
 if (payload.event_type === "presence") {
   if (payload.state === "device_offline") {
     // 被叫离线，清理通话状态
+    clearCallTimeout();
     leaveRtcChannel();
     currentSession = null;
   }
@@ -663,9 +664,11 @@ function isDuplicateMessage(payload) {
 | 端 | 操作 | Topic | 消息类型 |
 |----|------|-------|---------|
 | 主叫 | SUBSCRIBE | `d/{appid}/{device_id}/evt/call` | call_state |
-| 主叫 | SUBSCRIBE | `d/{appid}/evt/presence` | presence |
-| 主叫 | PUBLISH | `d/{appid}/{device_id}/call` | call, hangup |
-| 被叫 | SUBSCRIBE | `d/{appid}/{device_id}/call` | call, hangup |
+| 主叫 | SUBSCRIBE | `d/{appid}/{device_id}/evt/presence` | presence |
+| 主叫 | PUBLISH | `d/{appid}/{device_id}/call` | call |
+| 主叫 | PUBLISH | `d/{appid}/{device_id}/stop` | stop |
+| 被叫 | SUBSCRIBE | `d/{appid}/{device_id}/call` | call |
+| 被叫 | SUBSCRIBE | `d/{appid}/{device_id}/stop` | stop |
 | 被叫 | PUBLISH | `d/{appid}/{device_id}/evt/call` | call_state |
 | 被叫 | PUBLISH | `d/{appid}/{device_id}/evt/presence` | presence |
 | 被叫 | PUBLISH | `d/{appid}/{device_id}/evt/device` | device_event |

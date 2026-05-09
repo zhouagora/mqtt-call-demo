@@ -189,10 +189,30 @@ async function connectMqtt() {
       if (payload.state === "device_offline") {
         log("被叫设备已离线");
         if (currentSession) {
-          setCallState("ERROR", "被叫设备已离线");
+          // 清除超时定时器
+          clearCallTimeout();
+          
+          // 离开 RTC 频道（如果已经加入）
           await leaveRtcChannel();
+          
+          // 发送 STOP 指令（尽力而为）
+          try {
+            const stopTopic = buildTopic(config.appId, currentSession.device_id, "stop");
+            const stopPayload = buildStopCommandPayload(config.appId);
+            await publishMessage(client, stopTopic, stopPayload);
+            log("已发送被叫离线取消指令");
+          } catch (error) {
+            log("发送离线取消指令失败", error.message);
+          }
+          
+          // 清理会话状态
           currentSession = null;
+          
+          // 更新 UI
+          setCallState("ERROR", "被叫设备已离线，呼叫已取消");
           syncButtons();
+          
+          log("被叫离线兜底处理完成");
         }
       }
     }
