@@ -60,7 +60,7 @@
 
 **示例**：
 ```
-Client ID: b664384754fe434d84eab573961fd44c-caller-666
+Client ID: {YOUR_APP_ID}-caller-666
 Username: 666
 Password: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -76,7 +76,7 @@ Password: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 **示例**：
 ```
-Client ID: b664384754fe434d84eab573961fd44c-acp-sp2617xxxxx1
+Client ID: {YOUR_APP_ID}-acp-sp2617xxxxx1
 Username: acp-sp2617xxxxx1
 Password: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -114,10 +114,10 @@ d/{appid}/{device_id}/{suffix}
 
 **示例**：
 ```
-订阅: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/evt/call
-订阅: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/evt/presence
-发布: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/call
-发布: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/stop
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/call
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/presence
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/call
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/stop
 ```
 
 ### 3.3 被叫端主题
@@ -131,10 +131,10 @@ d/{appid}/{device_id}/{suffix}
 
 **示例**：
 ```
-订阅: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/call
-订阅: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/stop
-发布: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/evt/call
-发布: d/b664384754fe434d84eab573961fd44c/acp-sp2617xxxxx1/evt/device
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/call
+订阅: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/stop
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/call
+发布: d/{YOUR_APP_ID}/acp-sp2617xxxxx1/evt/device
 ```
 
 ⚠️ **重要**：被叫端**不发布** `evt/presence` 主题，该主题由 MQTT Broker 自动发布。
@@ -181,7 +181,7 @@ d/{appid}/{device_id}/{suffix}
 ```json
 {
   "agent_id": "A42AJ96AR26KC52KH29EP94EC66KT74T",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "channel": "acp-sp2617xxxxx1-13800138000",
   "device_id": "acp-sp2617xxxxx1",
   "event_type": "call",
@@ -290,7 +290,7 @@ if (payload.event_type === "device_offline") {
 ```json
 {
   "event_type": "device_online",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "device_id": "acp-sp2617xxxxx1",
   "timestamp": 1234567890,
   "connected_at": 1234567890
@@ -301,7 +301,7 @@ if (payload.event_type === "device_offline") {
 ```json
 {
   "event_type": "device_offline",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "cause": "tcp_closed",
   "device_id": "acp-sp2617xxxxx1",
   "timestamp": 1234567900,
@@ -319,7 +319,7 @@ if (payload.event_type === "device_offline") {
 **消息格式**：
 ```json
 {
-  "appid": "b664384754fe434d84eab573961fd44c"
+  "appid": "{YOUR_APP_ID}"
 }
 ```
 
@@ -388,7 +388,7 @@ if (payload.event_type === "call") {
 **消息格式**：
 ```json
 {
-  "appid": "b664384754fe434d84eab573961fd44c"
+  "appid": "{YOUR_APP_ID}"
 }
 ```
 
@@ -422,7 +422,7 @@ if (activeSession) {
 {
   "event_type": "call_state",
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "vid": 130451,
   "labels": { ... },
   "channel": "acp-sp2617xxxxx1-13800138000",
@@ -488,7 +488,7 @@ CALLING → RINGING → ANSWERED → HANGUP
 {
   "event_type": "call_state",
   "timestamp": "ISO 8601 格式时间戳",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "vid": 130451,
   "labels": { ... },
   "channel": "RTC 频道名",
@@ -738,7 +738,7 @@ CALLING → RINGING → ANSWERED → HANGUP
 ```json
 {
   "event_type": "device_online",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "device_id": "acp-sp2617xxxxx1",
   "timestamp": 1234567890,
   "connected_at": 1234567890
@@ -761,7 +761,7 @@ CALLING → RINGING → ANSWERED → HANGUP
 ```json
 {
   "event_type": "device_offline",
-  "appid": "b664384754fe434d84eab573961fd44c",
+  "appid": "{YOUR_APP_ID}",
   "cause": "tcp_closed",
   "device_id": "acp-sp2617xxxxx1",
   "timestamp": 1234567900,

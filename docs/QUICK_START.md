@@ -174,7 +174,7 @@ curl -X POST http://127.0.0.1:3000/api/rtc/token \
   "message": "success",
   "data": {
     "token": "007eJxTYCjIMF...",  // 长字符串，以 007eJxT 开头
-    "appId": "b664384754fe434d84eab573961fd44c",
+    "appId": "{YOUR_APP_ID}",
     "channel": "test-channel",
     "uid": 666,
     "expiresAt": 1778312997
