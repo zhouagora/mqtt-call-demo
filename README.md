@@ -45,10 +45,11 @@ npm install
 复制配置模板并填写您的配置：
 
 ```bash
-cp .env.example .env
+# 复制配置模板到 server 目录
+cp .env.example server/.env
 ```
 
-编辑 `.env` 文件：
+打开 `server/.env` 文件编辑：
 
 ```env
 # Agora App ID（从声网控制台获取）
