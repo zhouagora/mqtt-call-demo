@@ -39,8 +39,17 @@ echo "✅ 文件添加完成"
 echo ""
 
 # 检查 .env 文件是否被错误添加
-if git ls-files --cached | grep -q ".env$"; then
-    echo "⚠️  警告：检测到 .env 文件被添加！"
+echo "   检查敏感文件..."
+if git ls-files --cached | grep -q "server/\.env$"; then
+    echo "⚠️  警告：检测到 server/.env 文件被添加！"
+    echo "   正在移除 server/.env 文件..."
+    git reset HEAD server/.env
+    echo "✅ server/.env 文件已移除"
+    echo ""
+fi
+
+if git ls-files --cached | grep -q "\.env$"; then
+    echo "⚠️  警告：检测到根目录 .env 文件被添加！"
     echo "   正在移除 .env 文件..."
     git reset HEAD .env
     echo "✅ .env 文件已移除"
@@ -55,7 +64,8 @@ git commit -m "feat: 初始化 MQTT 语音呼叫演示系统
 - 集成声网 Agora RTC 语音通话（G722编码）
 - 配置外化（环境变量管理）
 - 文档脱敏处理
-- 添加完整操作说明"
+- 添加完整操作说明
+- 优化目录结构（server/web/sdk/docs分离）"
 echo "✅ 提交完成"
 echo ""
 
@@ -89,8 +99,8 @@ if [ $? -eq 0 ]; then
     echo "📝 客户使用步骤："
     echo "   1. git clone <仓库地址>"
     echo "   2. cd <项目目录>"
-    echo "   3. cp .env.example .env"
-    echo "   4. 编辑 .env 填写配置"
+    echo "   3. cp .env.example server/.env"
+    echo "   4. 编辑 server/.env 填写配置"
     echo "   5. npm install"
     echo "   6. npm run dev"
     echo ""

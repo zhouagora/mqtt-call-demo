@@ -10,6 +10,7 @@ import {
   loadConfig,
   publishMessage,
   requestMqttToken,
+  requestRtcToken,
   safeJsonParse,
   subscribeTopic,
   waitForConnect,
@@ -183,37 +184,48 @@ async function connectMqtt() {
       }
     }
     
-    // 处理设备在线状态
-    if (payload.event_type === "presence") {
-      log("收到设备在线状态", payload);
-      if (payload.state === "device_offline") {
-        log("被叫设备已离线");
-        if (currentSession) {
-          // 清除超时定时器
-          clearCallTimeout();
-          
-          // 离开 RTC 频道（如果已经加入）
-          await leaveRtcChannel();
-          
-          // 发送 STOP 指令（尽力而为）
-          try {
-            const stopTopic = buildTopic(config.appId, currentSession.device_id, "stop");
-            const stopPayload = buildStopCommandPayload(config.appId);
-            await publishMessage(client, stopTopic, stopPayload);
-            log("已发送被叫离线取消指令");
-          } catch (error) {
-            log("发送离线取消指令失败", error.message);
-          }
-          
-          // 清理会话状态
-          currentSession = null;
-          
-          // 更新 UI
-          setCallState("ERROR", "被叫设备已离线，呼叫已取消");
-          syncButtons();
-          
-          log("被叫离线兜底处理完成");
+    // 处理设备在线状态（由 MQTT Broker 自动发布）
+    if (payload.event_type === "device_online") {
+      log("✅ 收到被叫在线事件（MQTT Broker 自动发布）", {
+        device_id: payload.device_id,
+        connected_at: payload.connected_at,
+      });
+    }
+    
+    if (payload.event_type === "device_offline") {
+      log("❌ 收到被叫离线事件（MQTT Broker 自动发布）", {
+        device_id: payload.device_id,
+        cause: payload.cause,
+        disconnected_at: payload.disconnected_at,
+      });
+      
+      if (currentSession) {
+        log("⚠️ 被叫在通话/振铃过程中离线，执行兜底处理");
+        
+        // 清除超时定时器
+        clearCallTimeout();
+        
+        // 离开 RTC 频道（如果已经加入）
+        await leaveRtcChannel();
+        
+        // 发送 STOP 指令（尽力而为）
+        try {
+          const stopTopic = buildTopic(config.appId, currentSession.device_id, "stop");
+          const stopPayload = buildStopCommandPayload(config.appId);
+          await publishMessage(client, stopTopic, stopPayload);
+          log("已发送被叫离线取消指令");
+        } catch (error) {
+          log("发送离线取消指令失败（不影响本地状态）", error.message);
         }
+        
+        // 清理会话状态
+        currentSession = null;
+        
+        // 更新 UI
+        setCallState("ERROR", "被叫设备已离线，通话已结束");
+        syncButtons();
+        
+        log("✅ 被叫离线兜底处理完成");
       }
     }
   });
@@ -262,7 +274,11 @@ async function joinRtcChannel(callStatePayload) {
     const appId = callStatePayload.appid || config.appId;
     const channel = callStatePayload.channel;
     const uid = 1; // 主叫 UID 固定为 1
-    const token = ""; // 默认为空
+    
+    // 请求主叫的 RTC Token
+    log("正在请求主叫的 RTC Token", { channel, uid });
+    const callerToken = await requestRtcToken(channel, uid);
+    log("主叫 RTC Token 请求成功");
     
     log("主叫准备加入语音频道", { appId, channel, uid });
     
@@ -285,8 +301,8 @@ async function joinRtcChannel(callStatePayload) {
       },
     });
     
-    // 加入频道并发布本地音频流
-    localTracks = await joinAgoraChannel(agoraClient, appId, channel, uid, token, log);
+    // 加入频道并发布本地音频流（使用 Token）
+    localTracks = await joinAgoraChannel(agoraClient, appId, channel, uid, callerToken, log);
     
     elements.localUid.textContent = localTracks.uid;
     elements.rtcStatus.textContent = "语音通话已连接";
@@ -342,6 +358,14 @@ async function placeCall() {
     throw new Error("被叫手机号码不能为空");
   }
 
+  // 构建 RTC 频道名
+  const channel = `${rawDeviceId}-${phoneNumber}`;
+  
+  // 请求被叫的 RTC Token（uid 为被叫的 uid）
+  log("正在请求被叫的 RTC Token", { channel, uid });
+  const calleeToken = await requestRtcToken(channel, uid);
+  log("被叫 RTC Token 请求成功");
+
   const payload = buildCallPayload({
     appId: config.appId,
     deviceId: rawDeviceId,
@@ -349,6 +373,7 @@ async function placeCall() {
     uid,
     callUuid: randomId("CALL-"),
     peerUuid: randomId("PEER-"),
+    rtcToken: calleeToken,  // 添加 RTC Token
   });
 
   currentSession = payload;

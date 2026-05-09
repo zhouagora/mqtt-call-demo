@@ -6,9 +6,12 @@
 
 - ✅ MQTT 信令交互（呼叫/接听/挂断）
 - ✅ 声网 Agora RTC 语音通话（G722 编码）
+- ✅ **RTC Token 鉴权**（安全加入频道）
 - ✅ 实时状态上报与订阅
 - ✅ 消息去重机制
 - ✅ 完整的呼叫状态机
+- ✅ 呼叫超时自动取消
+- ✅ 对方离线兜底处理
 
 ## 🛠️ 技术栈
 
@@ -51,6 +54,11 @@ cp .env.example .env
 # Agora App ID（从声网控制台获取）
 APP_ID=your_app_id_here
 
+# 声网 App Certificate（推荐，用于生成 RTC Token）
+# 获取方式：声网控制台 → 项目信息 → 主要证书
+# 如果不配置，系统会降级为静态 App ID 模式（不推荐用于生产环境）
+APP_CERTIFICATE=your_app_certificate_here
+
 # Basic Auth 认证信息（格式：Basic Base64(username:password)）
 BASIC_AUTH=Basic your_base64_encoded_auth_here
 
@@ -66,7 +74,8 @@ PORT=3000
 | 变量名 | 说明 | 获取方式 |
 |--------|------|----------|
 | `APP_ID` | 声网 Agora App ID | [声网控制台](https://console.agora.io/) |
-| `BASIC_AUTH` | MQTT Token API 的 Basic 认证 | 详见 [QUICK_START.md](./QUICK_START.md#如何获取-basic_auth) |
+| `APP_CERTIFICATE` | 声网 App 证书（**RTC Token 鉴权必需**） | [声网控制台](https://console.agora.io/) → 项目信息 → 主要证书 |
+| `BASIC_AUTH` | MQTT Token API 的 Basic 认证 | 详见 [docs/QUICK_START.md](./docs/QUICK_START.md#如何获取-basic_auth) |
 | `MQTT_WS_URL` | EMQX WebSocket 连接地址 | EMQX Cloud 控制台 |
 
 ### 4. 启动服务
@@ -136,14 +145,90 @@ npm run dev
 | 主题 | 方向 | 说明 |
 |------|------|------|
 | `d/{appid}/{device_id}/call` | 下行 | 接收呼叫指令 |
+| `d/{appid}/{device_id}/stop` | 下行 | 接收挂断指令 |
 | `d/{appid}/{device_id}/evt/call` | 上行 | 上报通话状态 |
 | `d/{appid}/{device_id}/evt/device` | 上行 | 上报设备事件 |
+| `d/{appid}/{device_id}/evt/presence` | **系统** | **设备在线/离线状态（由 MQTT Broker 自动发布）** |
 
 ### 消息格式
 
-详细的消息格式和状态机请参考：[设备MQTT通信协议.md](./设备MQTT通信协议.md)
+详细的消息格式和状态机请参考：[docs/MQTT通信协议-完整版.md](./docs/MQTT通信协议-完整版.md)
+
+### 设备在线/离线事件（Presence）
+
+**重要说明**：设备在线/离线状态由 **MQTT Broker 自动发布**，而非客户端手动发布。
+
+**工作原理**：
+1. 被叫端连接 MQTT → Broker 自动发布 `device_online` 事件
+2. 被叫端断开连接（包括突然断网） → Broker 自动发布 `device_offline` 事件
+3. 主叫端订阅 `evt/presence` 主题 → 接收并处理这些事件
+
+**在线事件格式**：
+```json
+{
+  "event_type": "device_online",
+  "appid": "your_app_id",
+  "device_id": "acp-sp2617xxxxx1",
+  "timestamp": 1234567890,
+  "connected_at": 1234567890
+}
+```
+
+**离线事件格式**：
+```json
+{
+  "event_type": "device_offline",
+  "appid": "your_app_id",
+  "cause": "tcp_closed",
+  "device_id": "acp-sp2617xxxxx1",
+  "timestamp": 1234567900,
+  "disconnected_at": 1234567900,
+  "connected_at": 1234567890
+}
+```
+
+**cause 常见值**：
+- `tcp_closed` - TCP 连接关闭（正常断开）
+- `keepalive_timeout` - 心跳超时（突然断网）
+- `server_shutdown` - 服务器关闭
+
+**主叫端处理逻辑**：
+- ✅ **振铃期间离线**：自动取消呼叫，清理状态
+- ✅ **通话中离线**：离开 RTC 频道，结束通话
+- ✅ **空闲时离线**：仅记录日志，不影响状态
+
+**优势**：
+- 🔒 **可靠性**：即使被叫突然断网（拔网线/关WiFi），也能及时检测
+- ⚡ **实时性**：连接断开后立即发布，延迟低
+- 🎯 **准确性**：包含断开原因（cause），便于诊断
 
 ## 🔐 安全说明
+
+### RTC Token 鉴权
+
+本项目支持声网 RTC Token 鉴权，确保只有授权用户才能加入频道。
+
+**工作原理**：
+1. 主叫发起呼叫时，服务端为被叫生成 RTC Token
+2. Token 随 CALL 指令传递给被叫
+3. 被叫接听后，使用 Token 加入 RTC 频道
+4. 主叫收到 ANSWERED 后，服务端为主叫生成 Token
+5. 主叫使用 Token 加入 RTC 频道
+
+**Token 特性**：
+- ⏱️ **有效期**：1 小时（3600 秒）
+- 🔒 **安全性**：每个用户独立 Token，绑定 App ID、频道名、UID
+- ✅ **自动降级**：未配置 `APP_CERTIFICATE` 时，自动使用静态 App ID 模式
+
+**配置步骤**：
+1. 登录 [声网控制台](https://console.agora.io/)
+2. 进入项目 → 项目信息
+3. 找到 **主要证书**（App Certificate）
+4. 复制到 `server/.env` 文件：
+   ```env
+   APP_CERTIFICATE=your_app_certificate_here
+   ```
+5. 重启服务即可生效
 
 ### 敏感信息管理
 
@@ -155,27 +240,35 @@ npm run dev
 
 ### 获取 MQTT Token
 
-参考文档：[Web端获取MQTT Token的命令请求.md](./Web端获取MQTT Token的命令请求.md)
+参考文档：[docs/Web端获取MQTT Token的命令请求.md](./docs/Web端获取MQTT Token的命令请求.md)
 
 ## 📁 项目结构
 
 ```
 BT_WIFI_COM/
-├── public/                  # 前端静态资源
-│   ├── caller.html         # 主叫端页面
-│   ├── caller.js           # 主叫端逻辑
-│   ├── callee.html         # 被叫端页面
-│   ├── callee.js           # 被叫端逻辑
-│   ├── common.js           # 公共函数库
-│   ├── index.html          # 首页
-│   └── styles.css          # 样式表
-├── Agora_Web_SDK/          # 声网 Web SDK
-│   └── AgoraRTC_N-4.24.3.js
-├── server.js               # Express 服务器
-├── .env.example            # 环境变量模板
-├── .gitignore              # Git 忽略规则
-├── package.json            # 项目依赖
-└── README.md               # 项目说明
+├── server/                  # 🖥️ 服务端代码
+│   ├── server.js           #    Express 服务器
+│   └── .env                #    环境配置（敏感信息）
+├── web/                     # 🌐 Web 客户端代码
+│   └── public/             #    静态资源
+│       ├── caller.html     #    主叫端页面
+│       ├── caller.js       #    主叫端逻辑
+│       ├── callee.html     #    被叫端页面
+│       ├── callee.js       #    被叫端逻辑
+│       ├── common.js       #    公共函数库
+│       ├── index.html      #    首页
+│       └── styles.css      #    样式表
+├── sdk/                     # 📦 第三方 SDK
+│   └── Agora_Web_SDK/      #    声网 Web SDK
+├── docs/                    # 📚 文档
+│   ├── MQTT通信协议-完整版.md
+│   ├── QUICK_START.md      #    快速开始
+│   ├── Web端获取MQTT Token的命令请求.md
+│   └── emqxxcloud环境连接地址信息.md
+├── .env.example            # 📝 环境配置模板
+├── .gitignore              # 🔒 Git 忽略规则
+├── package.json            # 📋 项目依赖
+└── package-lock.json       # 📋 依赖锁定
 ```
 
 ## 🔧 开发指南
@@ -200,7 +293,7 @@ npm start
 建议使用 PM2 等进程管理器：
 
 ```bash
-pm2 start server.js --name mqtt-call-demo
+pm2 start server/server.js --name mqtt-call-demo
 ```
 
 ## ❓ 常见问题
@@ -249,7 +342,7 @@ pm2 start server.js --name mqtt-call-demo
 
 1. 浏览器控制台日志
 2. 运行日志面板
-3. [设备MQTT通信协议.md](./设备MQTT通信协议.md)
+3. [docs/MQTT通信协议-完整版.md](./docs/MQTT通信协议-完整版.md)
 
 ---
 

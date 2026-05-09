@@ -33,6 +33,23 @@ export async function requestMqttToken({ username, clientId, deviceId }) {
   return data.data.token;
 }
 
+export async function requestRtcToken(channel, uid) {
+  const response = await fetch("/api/rtc/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ channel, uid }),
+  });
+  const data = await response.json();
+  
+  // 检查响应是否成功（code === 0）
+  // 注意：token 可以是空字符串（降级模式）
+  if (!response.ok || data.code !== 0 || data.data === undefined || data.data === null) {
+    throw new Error(data.message || "获取 RTC Token 失败");
+  }
+  
+  return data.data.token;  // 返回 token（可能是空字符串）
+}
+
 export function decodeJwtPayload(token) {
   const [, payload = ""] = String(token).split(".");
   if (!payload) {
@@ -180,6 +197,7 @@ export function buildCallPayload({
   uid,
   callUuid,
   peerUuid,
+  rtcToken,
 }) {
   return {
     agent_id: randomId("A"),
@@ -199,7 +217,7 @@ export function buildCallPayload({
     service: "",
     timestamp: unixNow(),
     to: phoneNumber,
-    token: "",
+    token: rtcToken || "",  // 使用传入的 RTC Token
     uid: String(uid),
     uuid: callUuid,
     vid: "130451",
@@ -295,8 +313,8 @@ export async function joinAgoraChannel(client, appId, channel, uid, token, log) 
   try {
     log("正在加入 Agora RTC 频道", { appId, channel, uid, token: token ? "***" : "(空)" });
     
-    // 加入频道
-    const joinedUid = await client.join(appId, channel, token || null);
+    // 加入频道（注意：必须传入 uid 参数）
+    const joinedUid = await client.join(appId, channel, token || null, uid);
     log("成功加入 Agora RTC 频道", { uid: joinedUid });
     
     // 只创建音频轨道（纯语音通话）

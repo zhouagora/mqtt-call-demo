@@ -11,6 +11,7 @@ import {
   loadConfig,
   publishMessage,
   requestMqttToken,
+  requestRtcToken,
   safeJsonParse,
   subscribeTopic,
   waitForConnect,
@@ -94,19 +95,6 @@ async function publishDeviceEvent() {
   const topic = buildTopic(config.appId, deviceId, "evt/device");
   const payload = buildDeviceEventPayload("");
   log("发布设备事件", { topic, payload });
-  await publishMessage(client, topic, payload);
-}
-
-async function publishDevicePresence(state) {
-  const deviceId = elements.deviceId.value.trim();
-  const topic = buildTopic(config.appId, deviceId, "evt/presence");
-  const payload = {
-    event_type: "presence",
-    state,  // "device_online" 或 "device_offline"
-    device_id: deviceId,
-    timestamp: Date.now(),
-  };
-  log(`发布设备${state === "device_online" ? "在线" : "离线"}状态`, { topic, payload });
   await publishMessage(client, topic, payload);
 }
 
@@ -292,7 +280,7 @@ async function connectMqtt() {
   await subscribeTopic(client, callTopic);
   await subscribeTopic(client, stopTopic);  // 订阅挂断指令
   await publishDeviceEvent();
-  await publishDevicePresence("device_online");  // 上报设备在线
+  // 注意：不再发布 evt/presence，由 MQTT Broker 自动发布系统主题
   setMqttState("CONNECTED");
   setCallState("IDLE", `已连接，并订阅：${callTopic}`);
   syncButtons();
@@ -306,10 +294,7 @@ function disconnectMqtt() {
   if (!client) {
     return;
   }
-  // 先上报设备离线状态
-  publishDevicePresence("device_offline").catch(err => {
-    log("上报设备离线状态失败", err.message);
-  });
+  // 注意：不再发布 evt/presence，由 MQTT Broker 自动检测设备离线
   client.end(true);
   client = null;
   resetSession("连接已断开。");
@@ -361,9 +346,9 @@ async function joinRtcChannel() {
     const appId = activeSession.appid || config.appId;
     const channel = activeSession.channel;
     const uid = Number(activeSession.uid); // 使用呼叫指令中的 uid
-    const token = activeSession.token || ""; // 使用呼叫指令中的 token，默认为空
+    const token = activeSession.token || ""; // 使用呼叫指令中的 token（主叫传递的 RTC Token）
     
-    log("被叫准备加入语音频道", { appId, channel, uid });
+    log("被叫准备加入语音频道", { appId, channel, uid, hasToken: Boolean(token) });
     
     // 创建 Agora 客户端
     agoraClient = createAgoraClient();
