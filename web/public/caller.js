@@ -36,6 +36,10 @@ const elements = {
   rtcPanel: document.querySelector("#rtcPanel"),
   localUid: document.querySelector("#localUid"),
   rtcStatus: document.querySelector("#rtcStatus"),
+  recordDate: document.querySelector("#recordDate"),
+  refreshRecords: document.querySelector("#refreshRecords"),
+  recordsTable: document.querySelector("#recordsTable"),
+  recordsBody: document.querySelector("#recordsBody"),
 };
 
 const log = createLogger(elements.logs);
@@ -160,6 +164,17 @@ async function connectMqtt() {
         // 清除超时定时器
         clearCallTimeout();
         await joinRtcChannel(payload);
+        
+        // 更新 CDR 记录
+        if (currentSession) {
+          await saveCdrRecord({
+            action: 'update',
+            call_uuid: currentSession.uuid,
+            status: 'ANSWERED',
+            answered_at: new Date().toISOString(),
+            callee_uid: String(payload.uid)
+          });
+        }
       }
 
       if (payload.state === "HANGUP" || payload.state === "ERROR") {
@@ -168,6 +183,20 @@ async function connectMqtt() {
         
         // 只有在会话还在时才清理（避免重复清理）
         if (currentSession) {
+          // 计算通话时长
+          const initiatedAt = currentSession.initiated_at || new Date().toISOString();
+          const duration = calculateCallDuration(initiatedAt);
+          
+          // 更新 CDR 记录
+          await saveCdrRecord({
+            action: 'update',
+            call_uuid: currentSession.uuid,
+            status: payload.state,
+            ended_at: new Date().toISOString(),
+            duration_seconds: duration,
+            hangup_cause: payload.cause || 'NORMAL_CLEARING'
+          });
+          
           // 离开 RTC 频道
           await leaveRtcChannel();
           currentSession = null;
@@ -380,6 +409,18 @@ async function placeCall() {
   setCallState("CALLING", `已发起呼叫，等待被叫状态更新...`);
   syncButtons();
 
+  // 创建 CDR 记录
+  await saveCdrRecord({
+    action: 'create',
+    call_uuid: payload.uuid,
+    caller_uid: String(elements.uid.value || config.uid || 'unknown'),
+    callee_device_id: rawDeviceId,
+    phone_number: phoneNumber,
+    channel: channel,
+    initiated_at: new Date().toISOString(),
+    status: 'CALLING'
+  });
+
   const callTopic = buildTopic(config.appId, rawDeviceId, "call");
   log("发布 CALL 指令", { topic: callTopic, payload });
   await publishMessage(client, callTopic, payload);
@@ -398,6 +439,20 @@ async function hangupCall() {
   
   // 保存会话信息用于发送 STOP 指令
   const session = currentSession;
+  
+  // 计算通话时长
+  const initiatedAt = session.initiated_at || new Date().toISOString();
+  const duration = calculateCallDuration(initiatedAt);
+  
+  // 更新 CDR 记录
+  await saveCdrRecord({
+    action: 'update',
+    call_uuid: session.uuid,
+    status: 'HANGUP',
+    ended_at: new Date().toISOString(),
+    duration_seconds: duration,
+    hangup_cause: 'CALLER_HANGUP'
+  });
   
   // 立即清理本地状态（不依赖被叫响应）
   currentSession = null;
@@ -534,3 +589,149 @@ elements.hangupButton.addEventListener("click", async () => {
 syncButtons();
 setMqttState("IDLE");
 setCallState("IDLE", "等待建立 MQTT 连接。");
+
+// ==================== 通话记录功能 ====================
+
+// 保存 CDR 记录
+async function saveCdrRecord(data) {
+  try {
+    const response = await fetch('/api/call-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    const result = await response.json();
+    if (result.code !== 0) {
+      console.error('[CDR] 保存记录失败:', result.message);
+    } else {
+      console.log('[CDR] 记录已保存:', data.call_uuid, data.action);
+      // 刷新通话记录列表
+      loadCallRecords();
+    }
+  } catch (error) {
+    console.error('[CDR] 保存记录失败:', error);
+  }
+}
+
+// 计算通话时长（秒）
+function calculateCallDuration(initiatedAt) {
+  if (!initiatedAt) return 0;
+  const start = new Date(initiatedAt).getTime();
+  const now = Date.now();
+  return Math.max(0, Math.floor((now - start) / 1000));
+}
+
+// 初始化日期选择器为今天
+const today = new Date().toISOString().split('T')[0];
+elements.recordDate.value = today;
+
+// 加载通话记录
+async function loadCallRecords() {
+  const date = elements.recordDate.value;
+  
+  console.log('[CDR] 正在加载通话记录，日期:', date);
+  
+  try {
+    const response = await fetch(`/api/call-records?date=${date}`);
+    const { code, data, total } = await response.json();
+    
+    console.log('[CDR] API 返回:', { code, total, dataLength: data?.length });
+    
+    if (code !== 0) {
+      throw new Error('Failed to load call records');
+    }
+    
+    renderCallRecords(data);
+  } catch (error) {
+    console.error('[CDR] 加载通话记录失败:', error);
+    elements.recordsBody.innerHTML = `
+      <tr class="empty-row">
+        <td colspan="5">加载失败: ${error.message}</td>
+      </tr>
+    `;
+  }
+}
+
+// 渲染通话记录表格
+function renderCallRecords(records) {
+  const tbody = elements.recordsBody;
+  
+  console.log('[CDR] 渲染通话记录，数量:', records?.length);
+  
+  if (!records || records.length === 0) {
+    tbody.innerHTML = `
+      <tr class="empty-row">
+        <td colspan="5">暂无通话记录</td>
+      </tr>
+    `;
+    return;
+  }
+  
+  tbody.innerHTML = records.map(record => {
+    const time = new Date(record.initiated_at).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    
+    const duration = record.duration_seconds 
+      ? formatDuration(record.duration_seconds)
+      : '-';
+    
+    const statusClass = getStatusClass(record.status);
+    const statusText = getStatusText(record.status);
+    
+    return `
+      <tr>
+        <td>${time}</td>
+        <td>${record.phone_number || '-'}</td>
+        <td class="duration">${duration}</td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        <td>${record.hangup_cause || '-'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// 格式化时长
+function formatDuration(seconds) {
+  if (!seconds || seconds === 0) return '0s';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) return `${s}s`;
+  return `${m}m${s}s`;
+}
+
+// 获取状态样式类
+function getStatusClass(status) {
+  const statusMap = {
+    'ANSWERED': 'status-answered',
+    'HANGUP': 'status-hangup',
+    'ERROR': 'status-error',
+    'CALLING': 'status-calling',
+    'RINGING': 'status-ringing'
+  };
+  return statusMap[status] || 'status-calling';
+}
+
+// 获取状态文本
+function getStatusText(status) {
+  const statusMap = {
+    'ANSWERED': '已接通',
+    'HANGUP': '已挂断',
+    'ERROR': '错误',
+    'CALLING': '呼叫中',
+    'RINGING': '振铃中'
+  };
+  return statusMap[status] || status;
+}
+
+// 绑定事件
+elements.refreshRecords.addEventListener('click', loadCallRecords);
+elements.recordDate.addEventListener('change', loadCallRecords);
+
+// 初始加载
+loadCallRecords();

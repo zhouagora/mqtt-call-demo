@@ -69,6 +69,32 @@
           <h2>运行日志</h2>
           <pre id="logs" class="log-view"></pre>
         </div>
+
+        <div class="panel call-records-panel">
+          <h2>通话记录</h2>
+          <div class="records-controls">
+            <input type="date" id="recordDate" class="date-input" />
+            <button id="refreshRecords" class="secondary-button">刷新</button>
+          </div>
+          <div class="records-table-wrapper">
+            <table class="records-table" id="recordsTable">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>被叫号码</th>
+                  <th>时长</th>
+                  <th>状态</th>
+                  <th>挂断原因</th>
+                </tr>
+              </thead>
+              <tbody id="recordsBody">
+                <tr class="empty-row">
+                  <td colspan="5">暂无通话记录</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
     </main>
   </body>

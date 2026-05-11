@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const { RtcTokenBuilder, RtcRole } = require("agora-token");
+const { initCallRecordsDir, getCallRecords, saveCallRecord, updateCallRecord } = require("./call-records");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const app = express();
@@ -31,6 +32,11 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+// 初始化通话记录目录
+initCallRecordsDir().catch(err => {
+  console.error('[CDR] 初始化通话记录目录失败:', err.message);
+});
 app.use(express.static(path.join(__dirname, "..", "web", "public")));
 app.use(
   "/vendor",
@@ -160,6 +166,58 @@ app.post("/api/rtc/token", (req, res) => {
   }
 });
 
+// 查询通话记录
+app.get('/api/call-records', async (req, res) => {
+  try {
+    const { date, caller_uid, status } = req.query;
+    const queryDate = date || new Date().toISOString().split('T')[0];
+    
+    const records = await getCallRecords(queryDate, { caller_uid, status });
+    
+    res.json({
+      code: 0,
+      data: records,
+      total: records.length,
+      date: queryDate
+    });
+  } catch (error) {
+    console.error('[CDR] 查询通话记录失败:', error);
+    res.status(500).json({
+      code: 1,
+      message: 'Failed to get call records',
+      error: error.message
+    });
+  }
+});
+
+// 保存/更新通话记录
+app.post('/api/call-records', async (req, res) => {
+  try {
+    const { action, call_uuid, ...data } = req.body;
+    
+    if (action === 'create') {
+      await saveCallRecord({ call_uuid, ...data });
+    } else if (action === 'update') {
+      await updateCallRecord(call_uuid, data);
+    } else {
+      return res.status(400).json({
+        code: 1,
+        message: 'Invalid action. Use "create" or "update"'
+      });
+    }
+    
+    res.json({ code: 0, message: 'Success' });
+  } catch (error) {
+    console.error('[CDR] 保存通话记录失败:', error);
+    res.status(500).json({
+      code: 1,
+      message: 'Failed to save call record',
+      error: error.message
+    });
+  }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`MQTT demo server listening on http://127.0.0.1:${PORT}`);
+  console.log('[CDR] 通话记录功能已启用');
 });
