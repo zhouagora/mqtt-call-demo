@@ -352,3 +352,10 @@ button.warn {
   background: #dbeafe;
   color: #1e40af;
 }
+
+/* 通话时长列 */
+.duration {
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
+}

@@ -1,0 +1,17 @@
+# 本地开发环境配置
+# ⚠️ 此文件包含敏感信息，不会被提交到 Git
+
+# Agora App ID
+APP_ID=aab8b8f5a8cd4469a63042fcfafe7063
+
+# Agora App Certificate（用于生成 RTC Token）
+APP_CERTIFICATE=
+
+# Basic Auth 认证信息
+BASIC_AUTH=Basic MjdiZjhjMmRkNTNhNGQwZGEwMWQxNmM4MTllOWE5Yzc6YjM2N2NiMjRiOTExNDQyYTg5YjU5YTdmN2Y0YjM1OWM=
+
+# MQTT WebSocket 连接地址
+MQTT_WS_URL=wss://i6f357a6.ala.dedicated.aliyun.emqxcloud.cn:8084/mqtt
+
+# 服务器端口
+PORT=3000

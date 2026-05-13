@@ -37,6 +37,7 @@ app.use(express.json());
 initCallRecordsDir().catch(err => {
   console.error('[CDR] 初始化通话记录目录失败:', err.message);
 });
+
 app.use(express.static(path.join(__dirname, "..", "web", "public")));
 app.use(
   "/vendor",

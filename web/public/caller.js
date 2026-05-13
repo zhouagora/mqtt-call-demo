@@ -406,6 +406,7 @@ async function placeCall() {
   });
 
   currentSession = payload;
+  currentSession.initiated_at = new Date().toISOString();  // 保存通话开始时间
   setCallState("CALLING", `已发起呼叫，等待被叫状态更新...`);
   syncButtons();
 
@@ -424,6 +425,8 @@ async function placeCall() {
   const callTopic = buildTopic(config.appId, rawDeviceId, "call");
   log("发布 CALL 指令", { topic: callTopic, payload });
   await publishMessage(client, callTopic, payload);
+  
+  // 注意：不在这里启动录音，等被叫接听后再启动
   
   // 启动呼叫超时定时器
   startCallTimeout();
@@ -690,7 +693,6 @@ function renderCallRecords(records) {
         <td>${record.phone_number || '-'}</td>
         <td class="duration">${duration}</td>
         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-        <td>${record.hangup_cause || '-'}</td>
       </tr>
     `;
   }).join('');

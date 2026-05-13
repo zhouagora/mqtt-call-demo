@@ -1,0 +1,50 @@
+[
+  {
+    "call_uuid": "CALL-111387A2CA930754813E1FAE554A7CE4",
+    "caller_uid": "666",
+    "callee_device_id": "ACP-SP261700007",
+    "phone_number": "18516145955",
+    "channel": "ACP-SP261700007-18516145955",
+    "initiated_at": "2026-05-13T02:22:46.957Z",
+    "status": "HANGUP",
+    "created_at": "2026-05-13T02:22:46.961Z",
+    "answered_at": "2026-05-13T02:22:54.037Z",
+    "callee_uid": "undefined",
+    "updated_at": "2026-05-13T02:23:06.625Z",
+    "ended_at": "2026-05-13T02:23:06.596Z",
+    "duration_seconds": 0,
+    "hangup_cause": "NORMAL_CLEARING"
+  },
+  {
+    "call_uuid": "CALL-7CC917161CCBC7200605E45A9B0BC684",
+    "caller_uid": "666",
+    "callee_device_id": "ACP-SP261700007",
+    "phone_number": "18516145955",
+    "channel": "ACP-SP261700007-18516145955",
+    "initiated_at": "2026-05-13T02:56:01.343Z",
+    "status": "HANGUP",
+    "created_at": "2026-05-13T02:56:01.354Z",
+    "answered_at": "2026-05-13T02:56:05.461Z",
+    "callee_uid": "undefined",
+    "updated_at": "2026-05-13T02:56:16.086Z",
+    "ended_at": "2026-05-13T02:56:16.080Z",
+    "duration_seconds": 0,
+    "hangup_cause": "NORMAL_CLEARING"
+  },
+  {
+    "call_uuid": "CALL-2779101D61C6C61059CBFC469E78239E",
+    "caller_uid": "666",
+    "callee_device_id": "ACP-SP261700007",
+    "phone_number": "18516145955",
+    "channel": "ACP-SP261700007-18516145955",
+    "initiated_at": "2026-05-13T03:02:24.537Z",
+    "status": "HANGUP",
+    "created_at": "2026-05-13T03:02:24.543Z",
+    "answered_at": "2026-05-13T03:02:28.707Z",
+    "callee_uid": "undefined",
+    "updated_at": "2026-05-13T03:02:35.513Z",
+    "ended_at": "2026-05-13T03:02:35.498Z",
+    "duration_seconds": 10,
+    "hangup_cause": "NORMAL_CLEARING"
+  }
+]
