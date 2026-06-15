@@ -210,7 +210,7 @@ export function buildCallPayload({
       _direction: "outbound",
       _from_number: deviceId,
       _pipeline_id: `web_demo_${uid}`,
-      _source: "web-caller",
+      _source: "web",
       _to_number: phoneNumber,
     },
     peer_uuid: peerUuid,

@@ -190,7 +190,7 @@ d/{appid}/{device_id}/{suffix}
     "_direction": "outbound",
     "_from_number": "acp-sp2617xxxxx1",
     "_pipeline_id": "web_demo_666",
-    "_source": "web-caller",
+    "_source": "web",
     "_to_number": "13800138000"
   },
   "peer_uuid": "PEER-xxxxxxxx",
@@ -561,22 +561,23 @@ CALLING → RINGING → ANSWERED → HANGUP
      |--- 1. 订阅 evt/call ------------>|
      |--- 2. 订阅 evt/presence -------->|
      |                                  |
-     |--- 3. 发布 CALL 指令 ----------->|
+     |--- 3. 加入 RTC 频道（等待）      |
+     |--- 4. 发布 CALL 指令 ---------->|
      |                                  |--- 收到 CALL
      |                                  |--- 检查状态（空闲）
-     |                                  |--- 4. 发布 CALLING
+     |                                  |--- 5. 发布 CALLING
      |<-- 收到 CALLING -----------------|
-     |                                  |--- 5. 发布 RINGING
+     |                                  |--- 6. 发布 RINGING
      |<-- 收到 RINGING -----------------|
      |                                  |--- 显示振铃界面
-     |                                  |--- 用户点击"接听"
-     |                                  |--- 6. 发布 ANSWERED
+     |                                  |--- 用户点击“接听”
+     |                                  |--- 7. 加入 RTC 频道
+     |                                  |--- 8. 发布 ANSWERED
      |<-- 收到 ANSWERED ----------------|
-     |--- 7. 加入 RTC 频道              |--- 8. 加入 RTC 频道
      |                                  |
      |      ====== RTC 通话中 ======     |
      |                                  |
-     |--- 9. 用户点击"挂断"             |
+     |--- 9. 用户点击“挂断”             |
      |--- 10. 发布 STOP 指令 ---------->|
      |                                  |--- 收到 STOP
      |                                  |--- 11. 发布 HANGUP 状态

@@ -159,11 +159,12 @@ async function connectMqtt() {
       setCallState(payload.state, `被叫最新状态：${summary}`);
       log("收到被叫状态上报", payload);
 
-      // 当收到 ANSWERED 状态时，加入 RTC 频道
+      // 当收到 ANSWERED 状态时，被叫已加入频道
       if (payload.state === "ANSWERED" && !agoraClient) {
         // 清除超时定时器
         clearCallTimeout();
-        await joinRtcChannel(payload);
+        // 主叫已经提前加入 RTC 频道，无需再次加入
+        log("被叫已接听，主叫已在 RTC 频道中");
         
         // 更新 CDR 记录
         if (currentSession) {
@@ -294,22 +295,14 @@ function disconnectMqtt() {
   syncButtons();
 }
 
-async function joinRtcChannel(callStatePayload) {
+async function joinRtcChannelForCaller(channel, uid, token) {
   try {
     elements.rtcPanel.hidden = false;
-    elements.rtcStatus.textContent = "正在加入语音频道...";
+    elements.rtcStatus.textContent = "正在加入语音频道等待被叫...";
     
-    // 使用呼叫指令中的参数加入 RTC 频道
-    const appId = callStatePayload.appid || config.appId;
-    const channel = callStatePayload.channel;
-    const uid = 1; // 主叫 UID 固定为 1
+    const appId = config.appId;
     
-    // 请求主叫的 RTC Token
-    log("正在请求主叫的 RTC Token", { channel, uid });
-    const callerToken = await requestRtcToken(channel, uid);
-    log("主叫 RTC Token 请求成功");
-    
-    log("主叫准备加入语音频道", { appId, channel, uid });
+    log("主叫准备提前加入语音频道", { appId, channel, uid });
     
     // 创建 Agora 客户端
     agoraClient = createAgoraClient();
@@ -318,6 +311,8 @@ async function joinRtcChannel(callStatePayload) {
     setupAgoraEventListeners(agoraClient, {
       onUserPublished: (user, mediaType) => {
         log("远端用户发布音频流", { uid: user.uid, mediaType });
+        // 被叫加入并发布了音频流
+        elements.rtcStatus.textContent = "语音通话已连接";
       },
       onUserUnpublished: (user, mediaType) => {
         log("远端用户取消发布音频流", { uid: user.uid, mediaType });
@@ -331,10 +326,10 @@ async function joinRtcChannel(callStatePayload) {
     });
     
     // 加入频道并发布本地音频流（使用 Token）
-    localTracks = await joinAgoraChannel(agoraClient, appId, channel, uid, callerToken, log);
+    localTracks = await joinAgoraChannel(agoraClient, appId, channel, uid, token, log);
     
     elements.localUid.textContent = localTracks.uid;
-    elements.rtcStatus.textContent = "语音通话已连接";
+    elements.rtcStatus.textContent = "已在频道中等待被叫...";
     
     // 更新音频指示器状态
     const indicator = document.querySelector("#audioIndicator");
@@ -343,11 +338,34 @@ async function joinRtcChannel(callStatePayload) {
       indicator.classList.add("active");
     }
     
-    log("主叫已成功加入语音频道", { uid: localTracks.uid });
+    log("主叫已成功加入语音频道等待", { uid: localTracks.uid });
   } catch (error) {
     elements.rtcStatus.textContent = "语音连接失败";
     log("主叫加入语音频道失败", error.message);
+    
+    // 加入失败时清理状态
+    agoraClient = null;
+    localTracks = null;
+    elements.rtcPanel.hidden = true;
+    
+    // 重置音频指示器状态
+    const indicator = document.querySelector("#audioIndicator");
+    if (indicator) {
+      indicator.classList.remove("active");
+      indicator.classList.add("inactive");
+    }
+    
+    // 如果会话还在，更新状态提示用户
+    if (currentSession) {
+      setCallState("ERROR", "语音频道加入失败，请重试");
+    }
   }
+}
+
+async function joinRtcChannel(callStatePayload) {
+  // 主叫已经在 placeCall 时提前加入了 RTC 频道
+  // 此函数保留以兼容旧逻辑，但不再使用
+  log("joinRtcChannel 被调用（已废弃，主叫已提前加入）", callStatePayload);
 }
 
 async function leaveRtcChannel() {
@@ -390,6 +408,12 @@ async function placeCall() {
   // 构建 RTC 频道名
   const channel = `${rawDeviceId}-${phoneNumber}`;
   
+  // 请求主叫的 RTC Token（主叫 UID 固定为 1）
+  const callerUid = 1;
+  log("正在请求主叫的 RTC Token", { channel, uid: callerUid });
+  const callerToken = await requestRtcToken(channel, callerUid);
+  log("主叫 RTC Token 请求成功");
+  
   // 请求被叫的 RTC Token（uid 为被叫的 uid）
   log("正在请求被叫的 RTC Token", { channel, uid });
   const calleeToken = await requestRtcToken(channel, uid);
@@ -402,11 +426,13 @@ async function placeCall() {
     uid,
     callUuid: randomId("CALL-"),
     peerUuid: randomId("PEER-"),
-    rtcToken: calleeToken,  // 添加 RTC Token
+    rtcToken: calleeToken,  // 添加被叫的 RTC Token
   });
 
   currentSession = payload;
   currentSession.initiated_at = new Date().toISOString();  // 保存通话开始时间
+  currentSession.caller_uid = callerUid;  // 保存主叫 UID
+  currentSession.channel = channel;  // 保存频道名
   setCallState("CALLING", `已发起呼叫，等待被叫状态更新...`);
   syncButtons();
 
@@ -426,7 +452,14 @@ async function placeCall() {
   log("发布 CALL 指令", { topic: callTopic, payload });
   await publishMessage(client, callTopic, payload);
   
-  // 注意：不在这里启动录音，等被叫接听后再启动
+  // 主叫提前加入 RTC 频道等待被叫
+  // 注意：即使 RTC 加入失败，也要继续启动超时定时器，因为 CALL 指令已发送
+  try {
+    await joinRtcChannelForCaller(channel, callerUid, callerToken);
+  } catch (error) {
+    log("警告：RTC 频道加入失败，但呼叫已发出", error.message);
+    // 不抛出错误，继续执行
+  }
   
   // 启动呼叫超时定时器
   startCallTimeout();
@@ -497,6 +530,9 @@ function startCallTimeout() {
     
     log("呼叫超时，自动取消呼叫");
     setCallState("ERROR", "呼叫超时，被叫无响应");
+    
+    // 离开 RTC 频道（主叫已提前加入）
+    await leaveRtcChannel();
     
     // 发送挂断指令
     try {
